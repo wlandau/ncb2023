@@ -80,11 +80,11 @@ We can use the delta method ([@beyene2005]) to approximate the mean and 95% conf
 
 ```{r}
 delta_method <- function(
-    estimate_treatment,
-    estimate_placebo,
-    standard_error_treatment,
-    standard_error_placebo,
-    alpha = 0.05
+  estimate_treatment,
+  estimate_placebo,
+  standard_error_treatment,
+  standard_error_placebo,
+  alpha = 0.05
 ) {
   a <- estimate_treatment
   b <- estimate_placebo
@@ -118,11 +118,11 @@ We can alternatively use Fieller's method ([@fieller1940], [@cordell1999], [@bey
 
 ```{r}
 fieller_method <- function(
-    estimate_treatment,
-    estimate_placebo,
-    standard_error_treatment,
-    standard_error_placebo,
-    alpha = 0.05
+  estimate_treatment,
+  estimate_placebo,
+  standard_error_treatment,
+  standard_error_placebo,
+  alpha = 0.05
 ) {
   a <- estimate_treatment
   b <- estimate_placebo
