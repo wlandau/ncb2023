@@ -1,6 +1,6 @@
 ---
 title: "Fold change example"
-author: "Will Landau"
+author: "Will Landau, Luwis Diya"
 output: html_document
 bibliography: bibliography.bib
 ---
