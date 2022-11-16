@@ -1,5 +1,5 @@
 ---
-title: "Fold change example"
+title: "Fold change example with qPCR"
 author: "Will Landau, Luwis Diya"
 output: html_document
 bibliography: bibliography.bib
