@@ -10,7 +10,7 @@ library(coda)
 library(rjags)
 library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE)
-set.seed(0)
+set.seed(1)
 ```
 
 ## About
