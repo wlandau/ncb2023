@@ -60,7 +60,7 @@ E \left ( \frac{1}{\theta} \right ) \approx \frac{1}{M} \sum_{m = 1}^M \frac{1}{
 \end{aligned}
 $$
 
-Likewise, a 90% posterior interval can be constructed from the 5th and 95th percentiles of the reciprocals $1 / \theta^{(1)}, \ldots, 1 / \theta^{(M)}$ of the original posterior samples. Unlike the frequentist case, this process does not require extra approximations like the Delta method, and it does not require Jacobian adjustments, no matter how complicated the transformation of variables may be. In the next section, we walk through an example of fitting a Bayesian model with MCMC, and we emphasize the simplicity and convenience of Bayesian inference on transformed parameters.
+Likewise, a 90% posterior interval consists of the 5th and 95th percentiles of the reciprocals $1 / \theta^{(1)}, \ldots, 1 / \theta^{(M)}$ of the original posterior samples. Unlike the frequentist case, this process does not require special approximations such as the delta method, and it does not require Jacobian adjustments, no matter how complicated the transformation of variables may be. In the next section, we walk through an example of fitting a Bayesian model with MCMC, and we emphasize the simplicity and convenience of Bayesian inference on transformed parameters.
 
 ## Case study
 
