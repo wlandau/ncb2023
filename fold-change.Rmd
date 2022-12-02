@@ -13,7 +13,56 @@ knitr::opts_chunk$set(echo = TRUE)
 set.seed(1)
 ```
 
-## About
+## Background
+
+Like frequentist inference, Bayesian inference produces means, medians, intervals and other summary statistics to describe quantities of interest. In the Bayesian case, most of these summaries come from the posterior distribution of the parameters given the data. The posterior density is defined as follows:
+
+$$
+p(\theta | y) = \frac{p(y | \theta)p(\theta)}{p(y)}
+$$
+
+where:
+
+* $y$: vector of fixed data points.
+* $\theta$: vector of uncertain parameters.
+* $p(\theta | y)$: *posterior* density of the parameters given the data.
+* $p(y | \theta)$: data model, density of the data given a set of parameters.
+* $p(\theta)$: prior density of the parameters, reflecting the belief about $\theta$ in the absence of data $y$.
+* $p(y)$: prior predictive distribution, $\int_\theta p(y | \theta) p(\theta) d \theta$.
+
+## Markov chain Monte Carlo
+
+The goal is to (1) estimate the posterior and then (2) derive summary statistics appropriate to the use case.
+
+In most cases, $p(y)$ is computationally intractable, so we do not derive the posterior analytically. Instead, we estimate $p(\theta | y)$ using Markov chain Monte Carlo (MCMC). In other words, we run one or more Markov chains whose target density is $p(\theta | y)$, and we get $M$ samples $\widehat{\theta} = (\widehat{\theta}^{(1)}, \ldots, \widehat{\theta}^{(M)})$ from $p(\theta | y)$.
+
+With posterior samples $\theta^{(m)}$, we can derive summary statistics of interest. If $\theta$ is a single scalar parameter, then the estimated posterior mean of $\theta$ is the mean of the posterior samples.
+
+$$
+E(\theta) \approx \frac{1}{M} \sum_{m = 1}^M \widehat{\theta}^{(m)}
+$$
+
+Likewise, we can estimate a 90% posterior interval for $\theta$ as
+
+$$
+\begin{aligned}
+\left ( q(\widehat{\theta}, 0.05), \ q(\widehat{\theta}, 0.95) \right )
+\end{aligned}
+$$
+
+where $q(\widehat{\theta}, \alpha)$ is the estimated $100 \times \alpha$ percentile of the vector $\widehat{\theta}$ of posterior samples. This posterior interval, sometimes called a credible interval, is the Bayesian equivalent of a confidence interval. But the interpretation in the Bayesian setting is much more straightforward: simply put, we believe with 90% confidence that $\theta$ lies inside the posterior interval.
+
+Inference on transformed parameters is likewise straightforward. For example, to estimate $1 / \theta$, we simply average the reciprocals of the posterior samples.
+
+$$
+\begin{aligned}
+E \left ( \frac{1}{\theta} \right ) \approx \frac{1}{M} \sum_{m = 1}^M \frac{1}{\theta^{(m)}}
+\end{aligned}
+$$
+
+Likewise, a 90% posterior interval can be constructed from the 5th and 95th percentiles of the reciprocals $1 / \theta^{(1)}, \ldots, 1 / \theta^{(M)}$ of the original posterior samples. Unlike the frequentist case, this process does not require extra approximations like the Delta method, and it does not require Jacobian adjustments, no matter how complicated the transformation of variables may be. In the next section, we walk through an example of fitting a Bayesian model with MCMC, and we emphasize the simplicity and convenience of Bayesian inference on transformed parameters.
+
+## Case study
 
 Consider a pre-clinical animal study (mice) with one treatment group and one placebo group. The outcome measure is qPCR gene expression on the log scale, and the goal is to estimate fold change of the outcome for treatment versus placebo. This report compares a simple frequentist model and the analogous Bayesian model in this analysis. In each case, the fold change is not an explicit parameter in the model and needs to be calculated by transforming other model parameters.
 
