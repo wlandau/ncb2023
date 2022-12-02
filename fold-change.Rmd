@@ -91,7 +91,9 @@ data <- bind_rows(placebo, treatment)
 data
 ```
 
-## Frequentist analysis
+## Frequentist benchmark analysis
+
+To begin, we establish a frequentist model of the data. We define and implement this model now so we can compare it to the Bayesian model later on.
 
 The frequentist model is a simple cell means model with one mean for each group. Below, $i = 1, I$ ($I = 2$) is the group designation, $j = 1, \ldots, J$ ($J = 10$) is the index of the mouse, $y_{ij}$ is the response of group $i$ mouse $j$, $\mu_i$ is the unknown mean parameter of group $i$, $\sigma$ is the unknown residual standard deviation, and $\stackrel{\text{ind}}{\sim}$ is shorthand to indicate independent and identically distributed quantities.
 
@@ -216,6 +218,8 @@ $$
 
 Above, the $m_i$'s, the $r_i$'s, and $s$ are constant hyperparameters that placebo the diffuseness of the priors. If we lack prior information, diffuse priors (e.g. large values of $r_1$, $r_2$, and $s$) may be appropriate if this is computationally feasible.
 
+## MCMC with JAGS
+
 We express the model in the JAGS code below.^[The normal distribution in JAGS accepts the precision as the second argument instead of the variance or standard deviation.]
 
 ```{r}
@@ -279,6 +283,10 @@ coda <- rjags::coda.samples(
 )
 samples <- tibble::as_tibble(posterior::as_draws_df(coda))
 ```
+
+## Convergence diagnostics
+
+
 
 We check convergence. Rhat should be below 1.01, and effective sample size should be at least 100 times the number of chains (in our case, 400).
 
