@@ -336,6 +336,97 @@ ggplot(estimates) +
   expand_limits(y = 0)
 ```
 
+## Informative priors
+
+So far, we have been using diffuse priors for $\mu_1$ and $\mu_2$. The goal for the priors was to be "non-informative", i.e. to reduce the influence of the prior distribution as much as possible and let the data drive the results. But in some situations, e.g. for computational reasons or to make us of historical information, it is desirable to use more informative priors. In cases like these, it is useful to run sensitivity analyses to understand the effect of the prior on the marginal posterior of the quantity of interest. Below, we experiment with a grid of $r_1$ and $r_2$ values and show the resulting posterior interval of $\mu_2/\mu_1$ for each analysis. For this case, suppose we choose prior means $m_1 = m_2 = 3$ based on historical data or expert elicitation. Low $r_i$ values impose a tight induced prior for $\mu_2/\mu_1$ centered at 1 (lower variance at the cost of increase bias towards a lack of differential expression).
+
+```{r}
+single_analysis <- function(
+  data,
+  jags_file,
+  m1 = 0,
+  m2 = 0,
+  r1 = 10,
+  r2 = 10
+) {
+  jags_data <- list(
+    y = data$y,
+    i = data$i,
+    N = nrow(data),
+    I = length(unique(data$i)),
+    m = c(m1, m2),
+    r = c(r1, r2),
+    s = 10
+  )
+  n_chains <- 4
+  n_adapt <- 2e3
+  n_warmup <- 2e3
+  n_iterations <- 4e3
+  inits <- replicate(
+    n_chains,
+    list(
+      ".RNG.name" = "base::Mersenne-Twister",
+      ".RNG.seed" = sample.int(n = 1e6, size = 1)
+    ),
+    simplify = FALSE
+  )
+  model <- rjags::jags.model(
+    file = jags_file,
+    data = jags_data,
+    n.chains = n_chains,
+    n.adapt = n_adapt,
+    inits = inits
+  )
+  update(model, n.iter = n_warmup, quiet = quiet)
+  coda <- rjags::coda.samples(
+    model = model,
+    variable.names = c("mu", "sigma"),
+    n.iter = n_iterations
+  )
+  samples <- tibble::as_tibble(posterior::as_draws_df(coda))
+  samples_fold_change <- samples$`mu[2]` / samples$`mu[1]`
+  summary <- posterior::summarise_draws(samples)
+  tibble::tibble(
+    estimate = mean(samples_fold_change),
+    lower = quantile(samples_fold_change, prob = 0.025),
+    upper = quantile(samples_fold_change, prob = 0.975),
+    m1 = m1,
+    m2 = m2,
+    r1 = r1,
+    r2 = r2,
+    max_rhat = max(summary$rhat),
+    min_ess_bulk = min(summary$ess_bulk),
+    min_ess_tail = min(summary$ess_tail)
+  )
+}
+```
+
+```{r, include = FALSE}
+library(purrr)
+out <- map_dfr(
+  .x = seq_len(20) / 10,
+  ~single_analysis(
+    data = data,
+    jags_file = jags_file,
+    m1 = 3,
+    m2 = 3,
+    r1 = .x,
+    r2 = .x
+  )
+)
+```
+
+Below, we plot the marginal posterior mean and 95% posterior interval of $\mu_2/mu_1$. Each interval corresponds to an independent Bayesian analysis with a different value of $r_1$. As expected, we see a narrow interval centered at 1 for small $r_1$ and $r_2$ and a wider interval shifted higher for high $r_1$ and $r_2$ 
+
+```{r}
+ggplot(out) +
+  geom_point(aes(x = r2, y = estimate)) +
+  geom_errorbar(aes(x = r2, ymin = lower, ymax = upper)) +
+  theme_gray(16) +
+  xlab("Prior standard deviation of each group mean\n(r1 and r2)") +
+  ylab("Fold change")
+```
+
 ## Convergence diagnostics
 
 MCMC uses Markov chains to produce posterior samples, and these Markov chains usually need thousands of iterations to converge to the posterior distribution. Convergence is essential. Otherwise, the samples do not faithfully reflect the posterior distribution. Unfortunately, it is impossible to prove convergence with 100% certainty. However, there are several diagnostics to check for obvious problems with convergence.
