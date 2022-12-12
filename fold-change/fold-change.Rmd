@@ -11,7 +11,12 @@ library(rjags)
 library(brms)
 library(tidyverse)
 library(broom.mixed)
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  comment = "#>",
+  echo = TRUE,
+  fig.width = 12,
+  fig.height = 9
+)
 set.seed(0)
 ```
 
@@ -201,12 +206,12 @@ The Bayesian model is the same as the frequentist one except
 $$
 \begin{aligned}
 &y_{ij} \stackrel{\text{ind}}{\sim} \text{Normal}(\mu_i, \sigma^2) \\
-&\qquad \mu_i \stackrel{\text{ind}}{\sim} \text{Normal}(0, s_\mu^2) \\
+&\qquad \mu_i \stackrel{\text{ind}}{\sim} \text{Normal}(m_i, \ s_\mu^2) \\
 &\qquad \sigma \sim \text{Uniform}(0, s_\sigma)
 \end{aligned}
 $$
 
-Above, $s_\mu$ and $s_\sigma$ are constant hyperparameters that placebo the diffuseness of the priors. If we lack prior information, diffuse priors (e.g. large values of $s_\mu$ and $s_\sigma$) may be appropriate if this is computationally feasible.
+Above, $m$, $s_\mu$, and $s_\sigma$ are constant hyperparameters that placebo the diffuseness of the priors. If we lack prior information, diffuse priors (e.g. large values of $s_\mu$ and $s_\sigma$) may be appropriate if this is computationally feasible.
 
 ## Posterior density
 
@@ -217,7 +222,7 @@ $$
 p(\theta | y) &\propto p(y | \theta) p(\theta) \\
 &= p(y | \mu_1, \mu_2, \sigma) p(\mu_1, \mu_2, \sigma) \\
 &= p(y | \mu_1, \mu_2, \sigma) p(\mu_1) p(\mu_2) p(\sigma) \\
-&= \left [ \prod_{j = 1}^{J} \frac{1}{\sqrt{2 \pi \sigma}} e^{-\frac{1}{2} \left (\frac{y_{ij} - \mu_i}{\sigma} \right )^2} \right ] \frac{1}{2 \pi s_\mu} e^{-\frac{1}{2} \left ( \frac{\mu_1}{s_\mu} \right )^2} \frac{1}{2 \pi s_\mu} e^{-\frac{1}{2} \left ( \frac{\mu_2}{s_\mu} \right )^2} I \left (0 < \sigma < s_\sigma \right )
+&= \left [ \prod_{j = 1}^{J} \frac{1}{\sqrt{2 \pi \sigma}} e^{-\frac{1}{2} \left (\frac{y_{ij} - \mu_i}{\sigma} \right )^2} \right ] \frac{1}{2 \pi s_\mu} e^{-\frac{1}{2} \left ( \frac{\mu_1 - m_1}{s_\mu} \right )^2} \frac{1}{2 \pi s_\mu} e^{-\frac{1}{2} \left ( \frac{\mu_2 - m_2}{s_\mu} \right )^2} I \left (0 < \sigma < s_\sigma \right )
 \end{aligned}
 $$
 
@@ -237,8 +242,8 @@ model{
   for (n in 1:N) {
     y[n] ~ dnorm(mu[i[n]], (1 / (sigma * sigma))) # dnorm() accepts precision as the second argument.
   }
-  for (j in 1:I) {
-    mu[j] ~ dnorm(0, (1 / (s_mu * s_mu)))
+  for (i in 1:I) {
+    mu[i] ~ dnorm(m[i], (1 / (s_mu * s_mu)))
   }
   sigma ~ dunif(0, s_sigma)
 }
@@ -254,6 +259,7 @@ jags_data <- list(
   N = length(data$y),
   i = data$i,
   I = length(unique(data$i)),
+  m = c(0, 0),
   s_mu = 10,
   s_sigma = 10
 )
@@ -338,62 +344,41 @@ ggplot(estimates) +
 
 ## Informative priors
 
-So far, we have been using diffuse priors for $\mu_1$ and $\mu_2$. The goal for the priors was to be "non-informative", i.e. to reduce the influence of the prior distribution as much as possible and let the data drive the results. But in some situations, e.g. for computational reasons or to make us of historical information, it is desirable to use more informative priors. In cases like these, it is useful to run sensitivity analyses to understand the effect of the prior on the marginal posterior of the quantity of interest. Below, we experiment with a grid of $r_1$ and $r_2$ values and show the resulting posterior interval of $\mu_2/\mu_1$ for each analysis. For this case, suppose we choose prior means $m_1 = m_2 = 3$ based on historical data or expert elicitation. Low $r_i$ values impose a tight induced prior for $\mu_2/\mu_1$ centered at 1 (lower variance at the cost of increase bias towards a lack of differential expression).
+So far, we have been using diffuse priors for $\mu_1$ and $\mu_2$. In other words, $\mu_1$ and $\mu_2$ each has a normal prior with a large variance. In the presence of enough data, such diffuse priors are unlikely to influence the results (e.g. relative to the frequentist model). For many analyses, this is a good thing. We often want priors to be "non-informative" to minimize unwanted statistical bias.
+
+However, informative priors may be desired in some situations. Sometimes we need them for computational reasons. In other cases, one can build informative priors based on reliable historical information, or even by formally eliciting hyperparameters from domain experts. In cases like these, it is useful to run sensitivity analyses to understand the effect of the prior on the marginal posterior of the quantity of interest. Below, we experiment with a grid of $s_\mu$ values and show the resulting posterior interval of $\mu_2/\mu_1$ for each analysis. Low $s_\mu$ values impose a tight induced prior for $\mu_2/\mu_1$ centered at 1 (lower variance at the cost of increase bias towards a lack of differential expression). We assume $m_1 = m_2 = 3$, which in a real application could be the outcome of a historical data analysis or prior elicitation exercise.
 
 ```{r}
-single_analysis <- function(
-  data,
-  jags_file,
-  m1 = 0,
-  m2 = 0,
-  r1 = 10,
-  r2 = 10
-) {
+single_analysis <- function(jags_code, data, s_mu = 10) {
   jags_data <- list(
     y = data$y,
+    N = length(data$y),
     i = data$i,
-    N = nrow(data),
     I = length(unique(data$i)),
-    m = c(m1, m2),
-    r = c(r1, r2),
-    s = 10
+    m = c(3, 3),
+    s_mu = s_mu,
+    s_sigma = 10
   )
-  n_chains <- 4
-  n_adapt <- 2e3
-  n_warmup <- 2e3
-  n_iterations <- 4e3
-  inits <- replicate(
-    n_chains,
-    list(
-      ".RNG.name" = "base::Mersenne-Twister",
-      ".RNG.seed" = sample.int(n = 1e6, size = 1)
-    ),
-    simplify = FALSE
-  )
-  model <- rjags::jags.model(
-    file = jags_file,
+  jags_model <- rjags::jags.model(
+    file = textConnection(jags_code),
     data = jags_data,
-    n.chains = n_chains,
-    n.adapt = n_adapt,
-    inits = inits
+    n.chains = 4,
+    n.adapt = 2000
   )
-  update(model, n.iter = n_warmup, quiet = quiet)
-  coda <- rjags::coda.samples(
-    model = model,
+  update(jags_model, n.iter = 2000, quiet = quiet)
+  samples <- rjags::coda.samples(
+    model = jags_model,
     variable.names = c("mu", "sigma"),
-    n.iter = n_iterations
+    n.iter = 4000
   )
-  samples <- tibble::as_tibble(posterior::as_draws_df(coda))
+  samples <- tibble::as_tibble(posterior::as_draws_df(samples))
   samples_fold_change <- samples$`mu[2]` / samples$`mu[1]`
   summary <- posterior::summarise_draws(samples)
   tibble::tibble(
     estimate = mean(samples_fold_change),
     lower = quantile(samples_fold_change, prob = 0.025),
     upper = quantile(samples_fold_change, prob = 0.975),
-    m1 = m1,
-    m2 = m2,
-    r1 = r1,
-    r2 = r2,
+    s_mu = s_mu,
     max_rhat = max(summary$rhat),
     min_ess_bulk = min(summary$ess_bulk),
     min_ess_tail = min(summary$ess_tail)
@@ -403,27 +388,17 @@ single_analysis <- function(
 
 ```{r, include = FALSE}
 library(purrr)
-out <- map_dfr(
-  .x = seq_len(20) / 10,
-  ~single_analysis(
-    data = data,
-    jags_file = jags_file,
-    m1 = 3,
-    m2 = 3,
-    r1 = .x,
-    r2 = .x
-  )
-)
+out <- map_dfr(.x = seq_len(20) / 10, ~single_analysis(jags_code, data, .x))
 ```
 
-Below, we plot the marginal posterior mean and 95% posterior interval of $\mu_2/mu_1$. Each interval corresponds to an independent Bayesian analysis with a different value of $r_1$. As expected, we see a narrow interval centered at 1 for small $r_1$ and $r_2$ and a wider interval shifted higher for high $r_1$ and $r_2$ 
+Below, we plot the marginal posterior mean and 95% posterior interval of $\mu_2/mu_1$. Each interval corresponds to an independent Bayesian analysis with a different value of $s_\mu$. As expected, we see a narrow interval centered at 1 for small $s_\mu$ and a wider interval shifted higher for high $s_\mu$. Based on this sensitivity analysis, an $s_\mu = 1.5$ would be considered high enough for a diffuse / non-informative prior (assuming the current dataset and $m = (3, 3)$). 
 
 ```{r}
 ggplot(out) +
-  geom_point(aes(x = r2, y = estimate)) +
-  geom_errorbar(aes(x = r2, ymin = lower, ymax = upper)) +
+  geom_point(aes(x = s_mu, y = estimate)) +
+  geom_errorbar(aes(x = s_mu, ymin = lower, ymax = upper)) +
   theme_gray(16) +
-  xlab("Prior standard deviation of each group mean\n(r1 and r2)") +
+  xlab("Hyperparameter s_mu") +
   ylab("Fold change")
 ```
 
@@ -523,6 +498,7 @@ ggplot(estimates) +
 
 ## Remarks
 
-The fold change on the log scale is not the only possible measure of differential expression in animal studies, but we include it here because convenient frequentist approximations exist and match the results of an equivalent Bayesian analysis with diffuse priors. For more complicated estimands, frequentist approximations may not be feasible, but the Bayesian paradigm still just as easily yields a valid marginal posterior distribution.
+* The fold change on the log scale is not the only possible measure of differential expression in animal studies, but we include it here because convenient frequentist approximations exist and match the results of an equivalent Bayesian analysis with diffuse priors.
+* For more complicated estimands, frequentist approximations may not be feasible, but the Bayesian paradigm still just as easily yields a valid marginal posterior distribution.
 
 ## References
