@@ -534,6 +534,6 @@ ggplot(estimates) +
 ## Remarks
 
 * The fold change on the log scale is not the only possible measure of differential expression in animal studies, but we include it here because convenient frequentist approximations exist and match the results of an equivalent Bayesian analysis with diffuse priors.
-* For more complicated estimands, frequentist approximations may not be feasible, but the Bayesian paradigm still just as easily yields a valid marginal posterior distribution.
+* For more complicated quantities of interest, frequentist approximations may not be feasible, but the Bayesian paradigm still just as easily yields a valid marginal posterior distribution.
 
 ## References
