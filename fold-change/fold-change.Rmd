@@ -20,40 +20,6 @@ knitr::opts_chunk$set(
 set.seed(0)
 ```
 
-## Background
-
-In its simplest form, a Bayesian workflow typically has two steps:
-
-1. Estimate the posterior distribution for a model given the data.
-2. Derive interpretable and scientifically meaningful summary statistics from that posterior.
-
-For a fixed observed dataset $y$ and uncertain model parameters $\theta$, recall the posterior density:
-
-$$
-p(\theta | y) = \frac{p(y | \theta)p(\theta)}{p(y)}
-$$
-Usually, the prior predictive density $p(y)$ is too difficult to estimate, but the data model $p(y | \theta)$ and the prior density $p(\theta)$ are simple. So to estimate the posterior $p(\theta | y)$, we use numerical methods that ignore $p(y)$ and only require $p(y | \theta)$ and  $p(\theta)$.
-
-Markov chain Monte Carlo (MCMC) is a popular family of such methods (although others exist too). In MCMC, we run one or more Markov chains whose target distribution is the posterior. Run for a total of $M < \infty$ discrete iterations, these Markov chains produce $M$ parameter samples $\theta^{(1)}, \ldots, \theta^{(M)}$ from $p(\theta | y)$. We use these samples to derive interpretable and scientifically meaningful summary statistics from that posterior. For example, for each scalar element $\theta_i$ of the parameter vector $\theta \in \mathbb{R}^I$,
-
-$$
-\begin{aligned}
-E(\theta_i) \approx \frac{1}{M} \sum_{m = 1}^M \theta_i^{(m)}
-\end{aligned}
-$$
-
-In fact, if $g: \mathbb{R}^I \mapsto \mathbb{R}$ is any function on the parameter space, we can easily estimate the expectation of $g(\theta)$.
-
-$$
-\begin{aligned}
-E \left (g(\theta) \right ) \approx \frac{1}{M} \sum_{m = 1}^M g \left (\theta^{(m)} \right )
-\end{aligned}
-$$
-
-Likewise, medians and other quantiles of $g(\theta)$ easily follow from transformed posterior samples $g \left (\theta^{(1)} \right ), \ldots, g \left (\theta^{(M)} \right )$. No matter how complicated $g()$ may be, these these summary statistics do not require any Jacobian adjustment. By contrast, frequentist models may require the delta method, Fieller's method, or other specialized derivation to properly estimate scientifically meaningful quantities from a fitted model.
-
-This tutorial demonstrates how convenient and useful the Bayesian paradigm can be in these situations. In the example below, the scientifically meaningful quantity of interest is a ratio of means. A simple frequentist model needs an extra derivation to estimate this ratio, whereas equivalent Bayesian models can estimate it directly.
-
 ## Fold change example
 
 Consider a pre-clinical animal study (mice) with one treatment group and one placebo group. The outcome measure is qPCR gene expression on the log scale, and the goal is to estimate fold change of the outcome for treatment versus placebo. This tutorial compares a simple frequentist model and the analogous Bayesian model in this analysis. In each case, the fold change is not an explicit parameter in the model and needs to be calculated by transforming other model parameters.
@@ -85,7 +51,7 @@ data
 
 ## Frequentist analysis
 
-The frequentist model is a simple cell means model with one mean for each group. Below, $i = 1, \ldots, I$ is the group designation, and $j = 1, \ldots, J$ is the index of the mouse within each group. Our dataset has $I = 2$ groups and $J = 10$ mice per group. $y_{ij}$ is the observed log-scale qPCR expression level of mouse $j$ in group $i$, and $\mu_i$ is the unknown mean parameter of group $i$. $\sigma$ is the unknown residual standard deviation, and $\stackrel{\text{ind}}{\sim}$ is shorthand to indicate independent and identically distributed quantities.
+The frequentist model for this example is a simple cell means model with one mean for each group. Below, $i = 1, \ldots, I$ is the group designation, and $j = 1, \ldots, J$ is the index of the mouse within each group. Our dataset has $I = 2$ groups and $J = 10$ mice per group. $y_{ij}$ is the observed log-scale qPCR expression level of mouse $j$ in group $i$, and $\mu_i$ is the unknown mean parameter of group $i$. $\sigma$ is the unknown residual standard deviation, and $\stackrel{\text{ind}}{\sim}$ is shorthand to indicate independent and identically distributed quantities.
 
 $$
 \begin{aligned}
@@ -196,9 +162,43 @@ fieller_approximation <- fieller_method(
 fieller_approximation
 ```
 
+## Bayesian background
+
+In its simplest form, a Bayesian workflow typically has two steps:
+
+1. Estimate the posterior distribution for a model given the data.
+2. Derive interpretable and scientifically meaningful summary statistics from that posterior.
+
+For a fixed observed dataset $y$ and uncertain model parameters $\theta$, recall the posterior density:
+
+$$
+p(\theta | y) = \frac{p(y | \theta)p(\theta)}{p(y)}
+$$
+Usually, the prior predictive density $p(y)$ is too difficult to estimate, but the data model $p(y | \theta)$ and the prior density $p(\theta)$ are simple. So to estimate the posterior $p(\theta | y)$, we use numerical methods that ignore $p(y)$ and only require $p(y | \theta)$ and  $p(\theta)$.
+
+Markov chain Monte Carlo (MCMC) is a popular family of such methods (although others exist too). In MCMC, we run one or more Markov chains whose target distribution is the posterior. Run for a total of $M < \infty$ discrete iterations, these Markov chains produce $M$ parameter samples $\theta^{(1)}, \ldots, \theta^{(M)}$ from $p(\theta | y)$. We use these samples to derive interpretable and scientifically meaningful summary statistics from that posterior. For example, for each scalar element $\theta_i$ of the parameter vector $\theta \in \mathbb{R}^I$,
+
+$$
+\begin{aligned}
+E(\theta_i) \approx \frac{1}{M} \sum_{m = 1}^M \theta_i^{(m)}
+\end{aligned}
+$$
+
+In fact, if $g: \mathbb{R}^I \mapsto \mathbb{R}$ is any function on the parameter space, we can easily estimate the expectation of $g(\theta)$.
+
+$$
+\begin{aligned}
+E \left (g(\theta) \right ) \approx \frac{1}{M} \sum_{m = 1}^M g \left (\theta^{(m)} \right )
+\end{aligned}
+$$
+
+Likewise, medians and other quantiles of $g(\theta)$ easily follow from transformed posterior samples $g \left (\theta^{(1)} \right ), \ldots, g \left (\theta^{(M)} \right )$. No matter how complicated $g()$ may be, these these summary statistics do not require any Jacobian adjustment. By contrast, frequentist models may require the delta method, Fieller's method, or other specialized derivation to properly estimate scientifically meaningful quantities from a fitted model.
+
+This tutorial demonstrates how convenient and useful the Bayesian paradigm can be in these situations. In the example below, the scientifically meaningful quantity of interest is a ratio of means. A simple frequentist model needs an extra derivation to estimate this ratio, whereas equivalent Bayesian models can estimate it directly.
+
 ## Bayesian model
 
-The Bayesian model is the same as the frequentist one except
+The Bayesian version of our model is the same as the frequentist one except
 
 1. We treat the dataset as fixed and known, and we treat the parameters as unknown and uncertain.
 2. We assign independent prior distributions to each of the scalar parameters $\mu_1$, $\mu_2$, and $\sigma$. Together, they constitute and overall joint prior on the parameter space of the model.
