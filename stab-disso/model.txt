@@ -1,0 +1,97 @@
+model {
+  # model fitting
+	for(k in 1:N){
+	y[k] ~ dnorm(mu[k], taue)
+        mu[k]<-beta[1]+(beta[2]*c1[k]+beta[3]*c2[k]+beta[4]*c3[k]+beta[5]*c4[k]+beta[6]*c5[k])*t[k]+b[bid[k]]+r[rid[k]]	      
+        }
+        for (i in 1:B) {b[i] ~ dnorm(0,taub)}
+        for (j in 1:R) {r[j] ~ dnorm(0,taur)}
+  ## Priors:
+  ### fixed effects
+    for(f in 1:6){beta[f]~ dnorm(0.0,1.0E-3)}
+  ### precision priors
+  taue ~ dgamma(1.0E-3,1.0E-3)
+  taur ~ dgamma(1.0E-3,1.0E-3)
+  taub ~ dgamma(1.0E-3,1.0E-3)
+  ## variance components
+  sigmae2 <-1.0/(taue)
+  sigmar2 <-1.0/(taur)
+  sigmab2 <-1.0/(taub)
+  # Risk evaluation:
+  for(s in 1:N2){
+	          mu0.rep[s]<-beta[1]+        b.rep[bid2[s]]+r01[rid2[s]] 
+	          mu1.rep[s]<-beta[1]+24*beta[3]+b.rep[bid2[s]]+r11[rid2[s]] 
+	          mu2.rep[s]<-beta[1]+36*beta[3]+b.rep[bid2[s]]+r21[rid2[s]] 
+	          mu3.rep[s]<-beta[1]+24*beta[4]+b.rep[bid2[s]]+r31[rid2[s]] 
+	          mu4.rep[s]<-beta[1]+36*beta[4]+b.rep[bid2[s]]+r41[rid2[s]] 		  
+             for (k in 1:6){
+                  ## Stage 1: 
+	                y.rep0[s,k     ] ~ dnorm(mu0.rep[s], taue)
+	                y.rep1[s,k     ] ~ dnorm(mu1.rep[s], taue)
+	                y.rep2[s,k     ] ~ dnorm(mu2.rep[s], taue)
+	                y.rep3[s,k     ] ~ dnorm(mu3.rep[s], taue)
+	                y.rep4[s,k     ] ~ dnorm(mu4.rep[s], taue)
+                  ## Stage 2: 
+                  y.rep0[s,(6+k) ] ~ dnorm(mu0.rep[s], taue)
+	                y.rep1[s,(6+k) ] ~ dnorm(mu1.rep[s], taue)
+	                y.rep2[s,(6+k) ] ~ dnorm(mu2.rep[s], taue)
+	                y.rep3[s,(6+k) ] ~ dnorm(mu3.rep[s], taue)
+	                y.rep4[s,(6+k) ] ~ dnorm(mu4.rep[s], taue)
+                  ## Stage 3: 
+			            y.rep0[s,(12+k)] ~ dnorm(mu0.rep[s], taue)
+	                y.rep1[s,(12+k)] ~ dnorm(mu1.rep[s], taue)
+	                y.rep2[s,(12+k)] ~ dnorm(mu2.rep[s], taue)
+	                y.rep3[s,(12+k)] ~ dnorm(mu3.rep[s], taue)
+	                y.rep4[s,(12+k)] ~ dnorm(mu4.rep[s], taue)
+	                y.rep0[s,(18+k)] ~ dnorm(mu0.rep[s], taue)
+	                y.rep1[s,(18+k)] ~ dnorm(mu1.rep[s], taue)
+	                y.rep2[s,(18+k)] ~ dnorm(mu2.rep[s], taue)
+	                y.rep3[s,(18+k)] ~ dnorm(mu3.rep[s], taue)
+	                y.rep4[s,(18+k)] ~ dnorm(mu4.rep[s], taue)
+	               }
+	            ### Stage 1: OOS indicator
+	            oos01[s]<-(min(y.rep0[s,1:6])<(Q+5))
+	            oos11[s]<-(min(y.rep1[s,1:6])<(Q+5))
+	            oos21[s]<-(min(y.rep2[s,1:6])<(Q+5))
+	            oos31[s]<-(min(y.rep3[s,1:6])<(Q+5))
+	            oos41[s]<-(min(y.rep4[s,1:6])<(Q+5))
+              ### Stage 2: OOS indicator
+              oos02[s]<-(oos01[s]>0)*((mean(y.rep0[s,1:12])<Q)||(min(y.rep0[s,1:12])<(Q-15)))
+              oos12[s]<-(oos11[s]>0)*((mean(y.rep1[s,1:12])<Q)||(min(y.rep1[s,1:12])<(Q-15)))
+              oos22[s]<-(oos21[s]>0)*((mean(y.rep2[s,1:12])<Q)||(min(y.rep2[s,1:12])<(Q-15)))
+              oos32[s]<-(oos31[s]>0)*((mean(y.rep3[s,1:12])<Q)||(min(y.rep3[s,1:12])<(Q-15)))
+              oos42[s]<-(oos41[s]>0)*((mean(y.rep4[s,1:12])<Q)||(min(y.rep4[s,1:12])<(Q-15)))
+	            ### Stage 3: OOS indicator
+              oos03[s]<-(oos02[s]>0)*((mean(y.rep0[s,1:24])<Q)||(sum(y.rep0[s,1:24]<(Q-15))>2)||(min(y.rep0[s,1:24])<(Q-25)))
+              oos13[s]<-(oos12[s]>0)*((mean(y.rep1[s,1:24])<Q)||(sum(y.rep1[s,1:24]<(Q-15))>2)||(min(y.rep1[s,1:24])<(Q-25)))
+              oos23[s]<-(oos22[s]>0)*((mean(y.rep2[s,1:24])<Q)||(sum(y.rep2[s,1:24]<(Q-15))>2)||(min(y.rep2[s,1:24])<(Q-25)))                 
+              oos33[s]<-(oos32[s]>0)*((mean(y.rep3[s,1:24])<Q)||(sum(y.rep3[s,1:24]<(Q-15))>2)||(min(y.rep3[s,1:24])<(Q-25)))
+              oos43[s]<-(oos42[s]>0)*((mean(y.rep4[s,1:24])<Q)||(sum(y.rep4[s,1:24]<(Q-15))>2)||(min(y.rep4[s,1:24])<(Q-25)))
+              }
+              for (v in 1:B2) {b.rep[v] ~ dnorm(0,taub)}
+              for (w in 1:R2) {
+                   r01[w] ~ dnorm(0,taur)
+                   r11[w] ~ dnorm(0,taur)
+                   r21[w] ~ dnorm(0,taur) 
+                   r31[w] ~ dnorm(0,taur)
+                   r41[w] ~ dnorm(0,taur)
+                 }
+      ### Stage 1: POOS:
+      poos0[1]<- mean(oos01)
+      poos25C24[1]<- mean(oos11)
+      poos25C36[1]<- mean(oos21)
+      poos30C24[1]<- mean(oos31)
+      poos30C36[1]<- mean(oos41)
+      ### Stage 2: POOS:
+      poos0[2]<-(sum(oos01)>0)*sum(oos02)/(sum(oos01)+0.00001)
+      poos25C24[2]<-(sum(oos11)>0)*sum(oos12)/(sum(oos11)+0.00001)
+      poos25C36[2]<-(sum(oos21)>0)*sum(oos22)/(sum(oos21)+0.00001)
+      poos30C24[2]<-(sum(oos31)>0)*sum(oos32)/(sum(oos31)+0.00001)
+      poos30C36[2]<-(sum(oos41)>0)*sum(oos42)/(sum(oos41)+0.00001)
+      ### Stage 3: POOS:
+      poos0[3]<-(sum(oos02)>0)*sum(oos03)/(sum(oos02)+0.00001)
+      poos25C24[3]<-(sum(oos12)>0)*sum(oos13)/(sum(oos12)+0.00001)
+      poos25C36[3]<-(sum(oos22)>0)*sum(oos23)/(sum(oos22)+0.00001)
+      poos30C24[3]<-(sum(oos32)>0)*sum(oos33)/(sum(oos32)+0.00001)
+      poos30C36[3]<-(sum(oos42)>0)*sum(oos43)/(sum(oos42)+0.00001)
+}
