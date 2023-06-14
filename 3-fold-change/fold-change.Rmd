@@ -413,7 +413,7 @@ Another diagnostic is the Gelman-Rubin potential scale reduction factor, or $\wi
 
 Both ESS and $\widehat{R}$ are available by default in the `summarize_draws()` function of the posterior package. The results are acceptable for our qPCR model.
 
-```{r, message = FALSE}
+```{r, message = FALSE, paged.print = FALSE}
 library(posterior)
 samples %>%
   summarize_draws() %>%
@@ -479,8 +479,8 @@ brms_model <- brm(
 
 If needed, we could continue the MCMC from its current state.
 
-```{r, eval = FALSE}
-brms_model <- update(brms_model, warmup = 4000, iter = 8000, chains = 4,thin = 2)
+```{r, eval = FALSE, warning = FALSE}
+brms_model <- update(brms_model, warmup = 4000, iter = 8000, chains = 4, thin = 2)
 ```
 
 It is straightforward to get numerical convergence diagnostics. These ones are acceptable.
