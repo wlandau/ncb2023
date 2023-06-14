@@ -11,6 +11,10 @@ The short course consists of four 40-minute segments with a 10-minute break afte
 3. Discovery case study: fold change.
 4. CMC case study: dissolution stability.
 
+# Materials
+
+This repository has the slides and code for the short course. You can download the materials by clicking the green "Code" button on the upper right-hand side of the page, then selecting "Download ZIP". Alternatively, you can access the code in the [Posit Cloud](https://posit.cloud) workspace at <https://posit.cloud/content/6098943>. (However, the [`brms`](https://paul-buerkner.github.io/brms/) examples requires more than 1 GB memory: at least 2 GB in the fold change example, and at least 6 GB in the dissolution stability example. To learn how to upgrade the memory resources of your copy of the project, please visit <https://posit.cloud/plans>.)
+
 # Instructors
 
 Luwis Diya earned his PhD from KU Leuven in 2011, where he applied Bayesian multilevel modeling techniques to explore the relationship between patient safety, in particular adverse events, and nurse staffing levels based on register-based databases (Belgian health outcomes data base and Belgian nurse staffing data base). He also did post-doctoral research at Karolinska Institute (2011-2012) on familial cancers based on the Swedish cancer registry. He works at Janssen Pharmaceutica NV (Johnson & Johnson), from 2012-2020 he provided statistical support for Chemistry, Manufacturing and Controls and from 2020 he switched to providing statistical support to Discovery Sciences, in particular the Oncology Therapeutic Area. In his work, he advocates for the use of the Bayesian approach through interfaces in the R software.   
