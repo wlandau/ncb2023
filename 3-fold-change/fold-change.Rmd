@@ -1,0 +1,542 @@
+---
+title: "Fold change example"
+author: "Will Landau, Luwis Diya"
+output: html_document
+bibliography: bibliography.bib
+---
+
+```{r setup, include = FALSE}
+library(coda)
+library(rjags)
+library(brms)
+library(tidyverse)
+library(broom.mixed)
+knitr::opts_chunk$set(
+  comment = "#>",
+  echo = TRUE,
+  fig.width = 12,
+  fig.height = 9
+)
+set.seed(0)
+```
+
+## Fold change example
+
+Consider a pre-clinical animal study (mice) with one treatment group and one placebo group. The outcome measure is qPCR gene expression on the log scale, and the goal is to estimate fold change of the outcome for treatment versus placebo. This tutorial compares a simple frequentist model and the analogous Bayesian model in this analysis. In each case, the fold change is not an explicit parameter in the model and needs to be calculated by transforming other model parameters.
+
+## Data
+
+We simulate 10 mice from a normal distribution for each of the two groups.
+
+Quantity | placebo | Treatment
+---|---|---
+Mean | 3 | 4
+Standard deviation | 1 | 1
+
+In our dataset, the `y` column is the outcome we are modeling, and the `i` column is the group designation ($i = 1$ for placebo, $i = 2$ for treatment).
+
+```{r, paged.print = FALSE}
+library(tidyverse)
+placebo <- tibble(
+  y = rnorm(n = 10, mean = 3, sd = 1),
+  i = 1
+)
+treatment <- tibble(
+  y = rnorm(n = 10, mean = 4, sd = 1),
+  i = 2
+)
+data <- bind_rows(placebo, treatment)
+data
+```
+
+## Frequentist analysis
+
+The frequentist model for this example is a simple cell means model with one mean for each group. Below, $i = 1, \ldots, I$ is the group designation, and $j = 1, \ldots, J$ is the index of the mouse within each group. Our dataset has $I = 2$ groups and $J = 10$ mice per group. $y_{ij}$ is the observed log-scale qPCR expression level of mouse $j$ in group $i$, and $\mu_i$ is the unknown mean parameter of group $i$. $\sigma$ is the unknown residual standard deviation, and $\stackrel{\text{ind}}{\sim}$ is shorthand to indicate independent and identically distributed quantities.
+
+$$
+\begin{aligned}
+y_{ij} \stackrel{\text{ind}}{\sim} \text{Normal}(\mu_i, \sigma^2)
+\end{aligned}
+$$
+
+
+
+The joint density of $y = (y_{11}, \ldots, y_{IJ})$ given the parameters can be written as
+
+$$
+p_{\mu_1, \mu_2, \sigma}(y) = \prod_{j = 1}^{J} \frac{1}{\sqrt{2 \pi \sigma}} e^{-\frac{1}{2} \left (\frac{y_{ij} - \mu_i}{\sigma} \right )^2}
+$$
+
+with data model $p(y | \mu_1, \mu_2, \sigma) = p_{\mu_1, \mu_2, \sigma}(y)$. The fold change we want to estimate is the ratio of the treatment group mean to that of the placebo:
+
+$$
+\text{Fold change} = \frac{\mu_2}{\mu_1}
+$$
+
+We fit the model using `lm()` in R and note the estimate and standard error of each mean (placebo and treatment).
+
+```{r}
+fit_frequentist <- lm(y ~ 0 + i, data = mutate(data, i = ordered(i))) %>%
+  broom::tidy() %>%
+  rename(standard_error = std.error) %>%
+  mutate(across(-all_of("term"), \(x) round(x, digits = 3))) %>%
+  select(term, estimate, standard_error)
+
+fit_frequentist
+```
+
+To estimate the fold change in the frequentist paradigm, the desired estimate is not necessarily the ratio of the maximum likelihood estimates in the table above. To properly characterize the new estimate and its uncertainty, we need a formal change of variables. The delta method ([@beyene2005]) is one such technique, and it allows us to approximate the mean and 95% confidence interval of the fold change $\mu_2/\mu_1$. The implementation below assumes independence between $\mu_1$ and $\mu_2$, which is consistent with the underlying experimental conditions.
+
+```{r}
+delta_method <- function(
+  estimate_treatment,
+  estimate_placebo,
+  standard_error_treatment,
+  standard_error_placebo,
+  alpha = 0.05
+) {
+  a <- estimate_treatment
+  b <- estimate_placebo
+  se_a <- standard_error_treatment
+  se_b <- standard_error_placebo
+  theta <- a / b
+  v11 <- se_a ^ 2
+  v22 <- se_b ^ 2
+  z <- qnorm(p = alpha / 2, lower.tail = FALSE)
+  sigma <- sqrt((1 / (b ^ 2)) * (v11 + (theta ^ 2) * v22))
+  lower <- theta - z * sigma
+  upper <- theta + z * sigma
+  tibble(estimate = theta, lower = lower, upper = upper)
+}
+
+index_treatment <- which(fit_frequentist$term == "i2")
+index_placebo <- which(fit_frequentist$term == "i1")
+
+delta_approximation <- delta_method(
+  estimate_treatment = fit_frequentist$estimate[index_treatment],
+  estimate_placebo = fit_frequentist$estimate[index_placebo],
+  standard_error_treatment = fit_frequentist$standard_error[index_treatment],
+  standard_error_placebo = fit_frequentist$standard_error[index_placebo],
+  alpha = 0.05
+)
+
+delta_approximation
+```
+
+We can alternatively use Fieller's method ([@fieller1940], [@cordell1999], [@beyene2005]) to approximate the same quantities. The implementation below also assumes independence between $\mu_1$ and $\mu_2$, but it can be generalized to data where these quantities may be correlated.
+
+```{r}
+fieller_method <- function(
+  estimate_treatment,
+  estimate_placebo,
+  standard_error_treatment,
+  standard_error_placebo,
+  alpha = 0.05
+) {
+  a <- estimate_treatment
+  b <- estimate_placebo
+  se_a <- standard_error_treatment
+  se_b <- standard_error_placebo
+  theta <- a / b
+  v11 <- se_a ^ 2
+  v22 <- se_b ^ 2
+  z <- qnorm(p = alpha / 2, lower.tail = FALSE)
+  k <- (z ^ 2 * v22) / b ^ 2
+  estimate <- theta + (k / (1 - k)) * theta
+  margin <- z / (b * (1 - k)) * sqrt(v11 + theta ^ 2 * v22 - k * v11)
+  bound1 <- estimate - margin
+  bound2 <- estimate + margin
+  lower <- pmin(bound1, bound2)
+  upper <- pmax(bound1, bound2)
+  tibble(estimate = estimate, lower = lower, upper = upper)
+}
+
+fieller_approximation <- fieller_method(
+  estimate_treatment = fit_frequentist$estimate[index_treatment],
+  estimate_placebo = fit_frequentist$estimate[index_placebo],
+  standard_error_treatment = fit_frequentist$standard_error[index_treatment],
+  standard_error_placebo = fit_frequentist$standard_error[index_placebo],
+  alpha = 0.05
+)
+
+fieller_approximation
+```
+
+## Bayesian background
+
+In its simplest form, a Bayesian workflow typically has two steps:
+
+1. Estimate the posterior distribution for a model given the data.
+2. Derive interpretable and scientifically meaningful summary statistics from that posterior.
+
+For a fixed observed dataset $y$ and uncertain model parameters $\theta$, recall the posterior density:
+
+$$
+p(\theta | y) = \frac{p(y | \theta)p(\theta)}{p(y)}
+$$
+Usually, the prior predictive density $p(y)$ is too difficult to estimate, but the data model $p(y | \theta)$ and the prior density $p(\theta)$ are simple. So to estimate the posterior $p(\theta | y)$, we use numerical methods that ignore $p(y)$ and only require $p(y | \theta)$ and  $p(\theta)$.
+
+Markov chain Monte Carlo (MCMC) is a popular family of such methods (although others exist too). In MCMC, we run one or more Markov chains whose target distribution is the posterior. Run for a total of $M < \infty$ discrete iterations, these Markov chains produce $M$ parameter samples $\theta^{(1)}, \ldots, \theta^{(M)}$ from $p(\theta | y)$. We use these samples to derive interpretable and scientifically meaningful summary statistics from that posterior. For example, for each scalar element $\theta_i$ of the parameter vector $\theta \in \mathbb{R}^I$,
+
+$$
+\begin{aligned}
+E(\theta_i) \approx \frac{1}{M} \sum_{m = 1}^M \theta_i^{(m)}
+\end{aligned}
+$$
+
+In fact, if $g: \mathbb{R}^I \mapsto \mathbb{R}$ is any function on the parameter space, we can easily estimate the expectation of $g(\theta)$.
+
+$$
+\begin{aligned}
+E \left (g(\theta) \right ) \approx \frac{1}{M} \sum_{m = 1}^M g \left (\theta^{(m)} \right )
+\end{aligned}
+$$
+
+Likewise, medians and other quantiles of $g(\theta)$ easily follow from transformed posterior samples $g \left (\theta^{(1)} \right ), \ldots, g \left (\theta^{(M)} \right )$. No matter how complicated $g()$ may be, these these summary statistics do not require any Jacobian adjustment. By contrast, frequentist models may require the delta method, Fieller's method, or other specialized derivation to properly estimate scientifically meaningful quantities from a fitted model.
+
+This tutorial demonstrates how convenient and useful the Bayesian paradigm can be in these situations. In the example below, the scientifically meaningful quantity of interest is a ratio of means. A simple frequentist model needs an extra derivation to estimate this ratio, whereas equivalent Bayesian models can estimate it directly.
+
+## Bayesian model
+
+The Bayesian version of our model is the same as the frequentist one except
+
+1. We treat the dataset as fixed and known, and we treat the parameters as unknown and uncertain.
+2. We assign independent prior distributions to each of the scalar parameters $\mu_1$, $\mu_2$, and $\sigma$. Together, they constitute and overall joint prior on the parameter space of the model.
+
+$$
+\begin{aligned}
+&y_{ij} \stackrel{\text{ind}}{\sim} \text{Normal}(\mu_i, \sigma^2) \\
+&\qquad \mu_i \stackrel{\text{ind}}{\sim} \text{Normal}(m_i, \ s_\mu^2) \\
+&\qquad \sigma \sim \text{Uniform}(0, s_\sigma)
+\end{aligned}
+$$
+
+Above, $m$, $s_\mu$, and $s_\sigma$ are constant hyperparameters that placebo the diffuseness of the priors. If we lack prior information, diffuse priors (e.g. large values of $s_\mu$ and $s_\sigma$) may be appropriate if this is computationally feasible.
+
+## Posterior density
+
+If we were to implement Markov chain Monte Carlo (MCMC) from scratch, we would need to derive the posterior distribution up to a proportionality constant. Our parameter vector $\theta$ is $(\mu_1, \mu_2, \sigma)$. We already identified the data model $p(y | \theta) = p(y | \mu_1, \mu_2, \sigma)$ in the frequentist section above. The prior $p(\theta)$ is $p(\mu_1, \mu_2, \sigma)$, which factors into a product $p(\mu_1) p(\mu_2) p(\sigma)$ because of the independence assumptions of the model. $p(\mu_1)$ and $p(\mu_2)$ are normal densities, and $p(\sigma)$ is a uniform density. With all these pieces, we can derive the posterior density up to a proportionality constant.
+
+$$
+\begin{aligned}
+p(\theta | y) &\propto p(y | \theta) p(\theta) \\
+&= p(y | \mu_1, \mu_2, \sigma) p(\mu_1, \mu_2, \sigma) \\
+&= p(y | \mu_1, \mu_2, \sigma) p(\mu_1) p(\mu_2) p(\sigma) \\
+&= \left [ \prod_{j = 1}^{J} \frac{1}{\sqrt{2 \pi \sigma}} e^{-\frac{1}{2} \left (\frac{y_{ij} - \mu_i}{\sigma} \right )^2} \right ] \frac{1}{2 \pi s_\mu} e^{-\frac{1}{2} \left ( \frac{\mu_1 - m_1}{s_\mu} \right )^2} \frac{1}{2 \pi s_\mu} e^{-\frac{1}{2} \left ( \frac{\mu_2 - m_2}{s_\mu} \right )^2} I \left (0 < \sigma < s_\sigma \right )
+\end{aligned}
+$$
+
+## Bayesian software
+
+At this point, there are a variety of MCMC methods to estimate the posterior. Examples include rejection sampling, Metropolis-Hastings, slice sampling, Gibbs sampling, and Hamiltonian Monte Carlo. To implement one of these algorithms from scratch, you would need to work directly with the expression above. This is a worthwhile approach for complicated models you are willing to spend several months developing and optimizing, both the statistics and the code.
+
+However, there are already several existing software packages that can run MCMC on most Bayesian models. In these packages, you do not even have to derive the posterior distribution up to a proportionality constant. You merely need to identify the components of the likelihood and prior using the simple syntax supported by the tool. Examples of such tools are JAGS, `brms`, Stan, NIMBLE, `greta`, OpenBUGS, and WinBUGS. This tutorial will focus on JAGS, which uses Gibbs sampling, and `brms`, a convenient layer on top of Stan for Bayesian regression models. 
+
+## JAGS
+
+JAGS [@jags] stands for Just Another Gibbs Sampler. It supports a special R-like syntax to write a model in terms of distributions on the data and the parameters. Given a user-supplied model definition, JAGS runs Gibbs sampling and returns posterior samples for the model. We express our qPCR model in the JAGS model code below.
+
+```{r}
+jags_code <- "
+model{
+  for (n in 1:N) {
+    y[n] ~ dnorm(mu[i[n]], (1 / (sigma * sigma))) # dnorm() accepts precision as the second argument.
+  }
+  for (i in 1:I) {
+    mu[i] ~ dnorm(m[i], (1 / (s_mu * s_mu)))
+  }
+  sigma ~ dunif(0, s_sigma)
+}
+"
+```
+
+We will run JAGS using R. In the R console, we convert our dataset into a list format that JAGS can understand.
+
+```{r}
+library(rjags)
+jags_data <- list(
+  y = data$y,
+  N = length(data$y),
+  i = data$i,
+  I = length(unique(data$i)),
+  m = c(0, 0),
+  s_mu = 10,
+  s_sigma = 10
+)
+str(jags_data)
+```
+
+We create a JAGS model object using the `jags.model()` function. This object brings the data and model definition together, interprets the model, and tunes the Gibbs sampler in an adaptation phase (in this case, 2000 iterations). In addition, we use 4 Markov chains that begin at different starting values. Running multiple chains allows us to use diagnostics that can uncover potential problems with the MCMC (more on that later).
+
+```{r, output = FALSE, message = FALSE}
+jags_model <- rjags::jags.model(
+  file = textConnection(jags_code),
+  data = jags_data,
+  n.chains = 4,
+  n.adapt = 2000
+)
+```
+
+After adaptation, we stop tuning and run the MCMC a few thousand more iterations to allow each Markov chain to converge to the posterior distribution. This is the "burn-in" or "warmup" phase. After it is complete, we discard earlier iterations and only keep track of the current state of each Markov chain.
+
+```{r, output = FALSE, message = FALSE}
+update(jags_model, n.iter = 2000, quiet = TRUE)
+```
+
+After warmup, we hope the Markov chains have converged to the posterior. It is impossible to prove convergence in the general case, but there are trusted diagnostics to check for obvious issues, and the next section will describe them. For now, let us continue the Markov chains and save the resulting MCMC samples this time.
+
+```{r, output = FALSE, message = FALSE}
+coda <- rjags::coda.samples(
+  model = jags_model,
+  variable.names = c("mu", "sigma"),
+  n.iter = 4000
+)
+samples <- tibble::as_tibble(posterior::as_draws_df(coda))
+```
+
+We now have a nice tidy data frame with one row per MCMC sample and a column for each parameter. In addition, the `.chain` column identifies the Markov chain that produced each MCMC sample. The `.iteration` column indexes each sample within its Markov chain, and the `.draw` column indexes each sample overall. We ran each Markov chain for 4000 iterations after warmup, and there were 4 chains, so we have a total of 16000 samples.
+
+```{r, paged.print = FALSE}
+samples
+```
+
+## Bayesian estimation of fold change
+
+To estimate the fold change, we simply use the MCMC samples. First, we apply the transformation $g(\mu_1, \mu_2, \sigma) = \mu_2 / \mu_1$ derive posterior samples of the fold change.
+
+```{r}
+samples_fold_change <- samples$`mu[2]` / samples$`mu[1]`
+
+str(samples_fold_change)
+```
+
+Next, we use the transformed samples to estimate the mean, 2.5th percentile, and 97.5th percentile. The two percentiles are the respective lower and upper bound of an equal-tailed 95% posterior interval on the fold change $\mu_2 / \mu_1$.
+
+```{r}
+jags_estimate <- tibble(
+  estimate = mean(samples_fold_change),
+  lower = quantile(samples_fold_change, prob = 0.025),
+  upper = quantile(samples_fold_change, prob = 0.975)
+)
+
+jags_estimate
+```
+
+For this model, the Bayesian model gives us the same results as the frequentist model, but with less mathematical work. Extensions of this model could make use of prior information to inform the prior distributions on the parameters, which could lead to slightly different and more precise estimates of the fold change.
+
+```{r}
+estimates <- bind_rows(
+  delta = delta_approximation,
+  fieller = fieller_approximation,
+  jags = jags_estimate,
+  .id = "method"
+)
+estimates
+```
+
+```{r}
+library(ggplot2)
+ggplot(estimates) +
+  geom_point(aes(x = method, y = estimate, color = method)) +
+  geom_errorbar(aes(x = method, ymin = lower, ymax = upper, color = method)) +
+  expand_limits(y = 0) +
+  theme_gray(20)
+```
+
+## Informative priors
+
+So far, we have been using diffuse priors for $\mu_1$ and $\mu_2$. In other words, $\mu_1$ and $\mu_2$ each has a normal prior with a large variance. In the presence of enough data, such diffuse priors are unlikely to influence the results (e.g. relative to the frequentist model). For many analyses, this is a good thing. We often want priors to be "non-informative" to minimize unwanted statistical bias.
+
+However, informative priors may be desired in some situations. Sometimes we need them for computational reasons. In other cases, one can build informative priors based on reliable historical information, or even by formally eliciting hyperparameters from domain experts. In cases like these, it is useful to run sensitivity analyses to understand the effect of the prior on the marginal posterior of the quantity of interest. Below, we experiment with a grid of $s_\mu$ values and show the resulting posterior interval of $\mu_2/\mu_1$ for each analysis. Low $s_\mu$ values impose a concentrated/informative induced prior for $\mu_2/\mu_1$ centered at 1 (lower variance at the cost of increase bias towards a lack of differential expression). We assume $m_1 = m_2 = 3$, which in a real application could be the outcome of a historical data analysis or prior elicitation exercise.
+
+```{r}
+single_analysis <- function(jags_code, data, s_mu = 10) {
+  jags_data <- list(
+    y = data$y,
+    N = length(data$y),
+    i = data$i,
+    I = length(unique(data$i)),
+    m = c(3, 3),
+    s_mu = s_mu,
+    s_sigma = 10
+  )
+  jags_model <- rjags::jags.model(
+    file = textConnection(jags_code),
+    data = jags_data,
+    n.chains = 4,
+    n.adapt = 2000
+  )
+  update(jags_model, n.iter = 2000, quiet = quiet)
+  samples <- rjags::coda.samples(
+    model = jags_model,
+    variable.names = c("mu", "sigma"),
+    n.iter = 4000
+  )
+  samples <- tibble::as_tibble(posterior::as_draws_df(samples))
+  samples_fold_change <- samples$`mu[2]` / samples$`mu[1]`
+  summary <- posterior::summarise_draws(samples)
+  tibble::tibble(
+    estimate = mean(samples_fold_change),
+    lower = quantile(samples_fold_change, prob = 0.025),
+    upper = quantile(samples_fold_change, prob = 0.975),
+    s_mu = s_mu,
+    max_rhat = max(summary$rhat),
+    min_ess_bulk = min(summary$ess_bulk),
+    min_ess_tail = min(summary$ess_tail)
+  )
+}
+```
+
+```{r, include = FALSE}
+library(purrr)
+out <- map_dfr(.x = seq_len(20) / 10, ~single_analysis(jags_code, data, .x))
+```
+
+Below, we plot the marginal posterior mean and 95% posterior interval of $\mu_2/mu_1$. Each interval corresponds to an independent Bayesian analysis with a different value of $s_\mu$. As expected, we see a narrow interval centered at 1 for small $s_\mu$ and a wider interval shifted higher for high $s_\mu$. From inspecting the plot below from this sensitivity analysis, an $s_\mu$ value around $1.5$ would be considered high enough for a diffuse / non-informative prior (assuming the current dataset and $m = (3, 3)$). 
+
+```{r}
+ggplot(out) +
+  geom_point(aes(x = s_mu, y = estimate)) +
+  geom_errorbar(aes(x = s_mu, ymin = lower, ymax = upper)) +
+  xlab("Hyperparameter s_mu") +
+  ylab("Fold change") +
+  theme_gray(20)
+```
+
+## Convergence diagnostics
+
+MCMC uses Markov chains to produce posterior samples, and these Markov chains usually need thousands of iterations to converge to the posterior distribution. Convergence is essential. Otherwise, the samples do not faithfully reflect the posterior distribution. Unfortunately, it is impossible to prove convergence with 100% certainty. However, there are several diagnostics to check for obvious problems with convergence. See [@bda3] and [@vehtari] for deeper discussions of these diagnostics.
+
+One such diagnostic is effective sample size (ESS), which incorporates the autocorrelation of the MCMC to quantify how exhaustively each Markov chain ranges over the parameter space. Ideally, the MCMC samples should have zero (or negative) autocorrelation, which frees them to explore all regions of the posterior. However, sometimes Markov chains get stuck in uncooperative regions, or they have trouble moving over the parameter space. In these difficult cases, we say there are fewer *effective* samples than actual samples because a positively autocorrelated sample is worth less than an independent sample. The number of effective samples is like the number of saved iterations, but adjusted based on the observed autocorrelation. There are different versions of effective sample size: for example, bulk effective sample size reflects the main section of the posterior, and tail effective sample size reflects the outer regions of the distribution. At a minimum, each parameter should have an effective sample size (ESS) of at least 100 times the number of Markov chains.
+
+Another diagnostic is the Gelman-Rubin potential scale reduction factor, or $\widehat{R}$. For each scalar parameter, $\widehat{R}$ compares the variance among Markov chains to the variance of the parameter within each chain. If $\widehat{R}$ equals 1 for all parameters, this is evidence of "mixing": i.e., that the Markov chains approximate the same probability distribution. If the Markov chains started from different and dispersed starting values, then $\widehat{R}$ values of 1 lend evidence to convergence. An $\widehat{R}$ value above 1.01 is cause for concern. Something may be wrong with the model or data, or you may need to run the model for more iterations in any or all the phases of the Gibbs sampler (adaptation, warmup, and saved iterations). For our model, all the $\widehat{R}$ values are acceptable. $\widehat{R}$ may be a less sensitive diagnostic than ESS, but because it compares multiple chains against one another, it is more likely to detect if e.g. one of the chains is stuck in an uncooperative posterior mode the entire time.
+
+Both ESS and $\widehat{R}$ are available by default in the `summarize_draws()` function of the posterior package. The results are acceptable for our qPCR model.
+
+```{r, message = FALSE}
+library(posterior)
+samples %>%
+  summarize_draws() %>%
+  select(ess_bulk, ess_tail, rhat)
+```
+
+Traceplots are a graphical version of the same concept as $\widehat{R}$. A traceplot visualizes each MCMC chain against the iteration index, and it shows how the chains behave over time. In a well-behaved traceplot like the one below, the chains are heavily overplotted, and the chains do not trend up or down over time. Random fluctuation around the overall trend is a good sign that the chains are fully exploring the support of the posterior.
+
+```{r, message = FALSE}
+library(bayesplot)
+mcmc_trace(as_draws(samples), pars = c("mu[1]", "mu[2]", "sigma"))
+```
+
+Likewise, it is useful to see the marginal posterior distribution of each parameter, as well as correlations among different scalar parameters. Gibbs sampling perform best when parameters are uncorrelated in the MCMC.
+
+```{r}
+mcmc_pairs(as_draws(samples), pars = c("mu[1]", "mu[2]", "sigma"))
+```
+
+## `brms`
+
+The `brms` R package runs Bayesian regression models using Stan. Stan is a powerful probabilistic programming language that not only supports Hamiltonian Monte Carlo (HMC), but also other methodologies such as variational inference. Stan can fit a wider variety of models than JAGS because of the flexibility of HMC. With Stan, you can define components of the posterior density manually, and models can just as easily fit the framework using non-conjugate priors. Unfortunately, writing a Stan model is a bit more work than writing a JAGS model, and there is more room for error. To bridge the gap, `brms` simplifies the model specification process for common regression models.
+
+The following code fits our Bayesian qPCR model `brms`. First, we use `brms` to build our model and check the generated Stan code. If we wanted to customize the model beyond the capabilities of `brms`, we could begin with this automatically-generated Stan code, manually change it, and then run it with `CmdStanR` or `rstan`.
+
+```{r, output = FALSE, warning = FALSE}
+# Create an object to define the priors.
+prior <- get_prior(
+  formula = y ~ 0 + i, data = mutate(data, i = ordered(i)),
+  family = gaussian()
+)
+
+# Define a prior on all population-level effects at once.
+prior$prior[1] <- "normal(0, 10)"
+
+# Define a prior on the residual standard deviation.
+prior$prior[4] <- "uniform(0.001, 10)"
+
+# Verify that the priors indeed found their way into Stan's model code.
+make_stancode(
+  formula = y ~ 0 + i, data = mutate(data, i = ordered(i)),
+  family = gaussian(), 
+  prior = prior
+)
+```
+
+Next, we fit the model using separate phases for warmup and post-warmup.
+
+```{r, output = FALSE, message = FALSE, warning = FALSE}
+brms_model <- brm(
+  y ~ 0 + i,
+  data = mutate(data, i = ordered(i)),
+  family = gaussian(),
+  prior = prior,
+  warmup = 2000,
+  iter = 4000,
+  chains = 4,
+  thin = 1,
+  refresh = 0,
+  backend = "cmdstanr"
+)
+```
+
+If needed, we could continue the MCMC from its current state.
+
+```{r, eval = FALSE}
+brms_model <- update(brms_model, warmup = 4000, iter = 8000, chains = 4,thin = 2)
+```
+
+It is straightforward to get numerical convergence diagnostics. These ones are acceptable.
+
+```{r, paged.print = FALSE}
+summarize_draws(brms_model) %>%
+  select(rhat, ess_bulk, ess_tail)
+```
+
+For a more thorough set of diagnostics and summaries, we can launch the ShinyStan dashboard.
+
+```{r, eval = FALSE, output = FALSE, message = FALSE}
+y <- data$y # For posterior predictive checks.
+launch_shinystan(brms_model)
+```
+
+Computing the mean and 95% posterior interval of the fold change $\mu_2/\mu_1$ is easy in the Bayesian paradigm. We simply take the ratio of the posterior samples of $\mu_2$ and $\mu_1$. Unlike the delta method and Fieller's method, this method in the Bayesian paradigm is exact.
+
+```{r}
+brms_estimate <- brms_model %>%
+  as_draws_df() %>% 
+  summarise(
+    estimate = mean(b_i2 / b_i1),
+    lower = quantile((b_i2 / b_i1), prob = 0.025),
+    upper = quantile((b_i2 / b_i1), prob = 0.975)
+  )
+
+brms_estimate
+```
+
+Now, we can compare all four methods we have tried.
+
+```{r}
+estimates <- bind_rows(
+  delta = delta_approximation,
+  fieller = fieller_approximation,
+  jags = jags_estimate,
+  brms = brms_estimate,
+  .id = "method"
+)
+
+estimates
+```
+
+```{r}
+library(ggplot2)
+ggplot(estimates) +
+  geom_point(aes(x = method, y = estimate, color = method)) +
+  geom_errorbar(aes(x = method, ymin = lower, ymax = upper, color = method)) +
+  expand_limits(y = 0) +
+  theme_gray(20)
+```
+
+## Remarks
+
+* The fold change on the log scale is not the only possible measure of differential expression in animal studies, but we include it here because convenient frequentist approximations exist and match the results of an equivalent Bayesian analysis with diffuse priors.
+* For more complicated quantities of interest, frequentist approximations may not be feasible, but the Bayesian paradigm still just as easily yields a valid marginal posterior distribution.
+
+## References
