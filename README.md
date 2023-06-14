@@ -13,7 +13,7 @@ The short course consists of four 40-minute segments with a 10-minute break afte
 
 # Materials
 
-This repository has the slides and code for the short course. You can download the materials by navigating to <https://github.com/wlandau/ncb2023>, clicking the green "Code" button on the upper right-hand side of the page, and then selecting "Download ZIP". Alternatively, you can access the code in the [Posit Cloud](https://posit.cloud) workspace at <https://posit.cloud/content/6098943>. (However, the [`brms`](https://paul-buerkner.github.io/brms/) examples requires more than 1 GB memory: at least 2 GB in the fold change example, and at least 6 GB in the dissolution stability example. To learn how to upgrade the memory resources of your copy of the project, please visit <https://posit.cloud/plans>.)
+This repository has the slides and code for the short course. To download the materials, navigate to <https://github.com/wlandau/ncb2023>, click the green "Code" button on the upper right-hand side of the page, and then select "Download ZIP". Alternatively, you can access the code in the [Posit Cloud](https://posit.cloud) workspace at <https://posit.cloud/content/6098943>. (However, the [`brms`](https://paul-buerkner.github.io/brms/) examples requires more than 1 GB memory: at least 2 GB in the fold change example, and at least 6 GB in the dissolution stability example. To learn how to upgrade the memory resources of your copy of the project, please visit <https://posit.cloud/plans>.)
 
 # Instructors
 
