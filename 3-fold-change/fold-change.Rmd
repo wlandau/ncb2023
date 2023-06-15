@@ -51,7 +51,7 @@ data
 
 ## Frequentist analysis
 
-The frequentist model for this example is a simple cell means model with one mean for each group. Below, $i = 1, \ldots, I$ is the group designation, and $j = 1, \ldots, J$ is the index of the mouse within each group. Our dataset has $I = 2$ groups and $J = 10$ mice per group. $y_{ij}$ is the observed log-scale qPCR expression level of mouse $j$ in group $i$, and $\mu_i$ is the unknown mean parameter of group $i$. $\sigma$ is the unknown residual standard deviation, and $\stackrel{\text{ind}}{\sim}$ is shorthand to indicate independent and identically distributed quantities.
+The frequentist model for this example is a simple cell means model with one mean for each group. Below, $i = 1, \ldots, I$ is the group designation, and $j = 1, \ldots, J$ is the index of the mouse within each group. Our dataset has $I = 2$ groups and $J = 10$ mice per group. $y_{ij}$ is the observed log-scale qPCR expression level of mouse $j$ in group $i$, and $\mu_i$ is the unknown mean parameter of group $i$. $\sigma$ is the unknown residual standard deviation, and $\stackrel{\text{ind}}{\sim}$ is shorthand to indicate independent quantities.
 
 $$
 \begin{aligned}
