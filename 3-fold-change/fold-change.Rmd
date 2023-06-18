@@ -211,7 +211,7 @@ $$
 \end{aligned}
 $$
 
-Above, $m$, $s_\mu$, and $s_\sigma$ are constant hyperparameters that placebo the diffuseness of the priors. If we lack prior information, diffuse priors (e.g. large values of $s_\mu$ and $s_\sigma$) may be appropriate if this is computationally feasible.
+Above, $m_i$ ($i = 1, 2$), $s_\mu$, and $s_\sigma$ are constant hyperparameters that control the diffuseness of the priors. If we lack prior information, diffuse priors (e.g. large values of $s_\mu$ and $s_\sigma$) may be appropriate if this is computationally feasible.
 
 ## Posterior density
 
@@ -222,15 +222,15 @@ $$
 p(\theta | y) &\propto p(y | \theta) p(\theta) \\
 &= p(y | \mu_1, \mu_2, \sigma) p(\mu_1, \mu_2, \sigma) \\
 &= p(y | \mu_1, \mu_2, \sigma) p(\mu_1) p(\mu_2) p(\sigma) \\
-&= \left [ \prod_{j = 1}^{J} \frac{1}{\sqrt{2 \pi \sigma}} e^{-\frac{1}{2} \left (\frac{y_{ij} - \mu_i}{\sigma} \right )^2} \right ] \frac{1}{2 \pi s_\mu} e^{-\frac{1}{2} \left ( \frac{\mu_1 - m_1}{s_\mu} \right )^2} \frac{1}{2 \pi s_\mu} e^{-\frac{1}{2} \left ( \frac{\mu_2 - m_2}{s_\mu} \right )^2} I \left (0 < \sigma < s_\sigma \right )
+&= \left [ \prod_{j = 1}^{J} \frac{1}{\sqrt{2 \pi \sigma^2}} e^{-\frac{1}{2} \left (\frac{y_{ij} - \mu_i}{\sigma} \right )^2} \right ] \frac{1}{\sqrt{2 \pi s_\mu^2}} e^{-\frac{1}{2} \left ( \frac{\mu_1 - m_1}{s_\mu} \right )^2} \frac{1}{\sqrt{2 \pi s_\mu^2}} e^{-\frac{1}{2} \left ( \frac{\mu_2 - m_2}{s_\mu} \right )^2} I \left (0 < \sigma < s_\sigma \right )
 \end{aligned}
 $$
 
 ## Bayesian software
 
-At this point, there are a variety of MCMC methods to estimate the posterior. Examples include rejection sampling, Metropolis-Hastings, slice sampling, Gibbs sampling, and Hamiltonian Monte Carlo. To implement one of these algorithms from scratch, you would need to work directly with the expression above. This is a worthwhile approach for complicated models you are willing to spend several months developing and optimizing, both the statistics and the code.
+At this point, there are a variety of MCMC methods to estimate the posterior. Examples include rejection sampling, Metropolis-Hastings, slice sampling, Gibbs sampling, and Hamiltonian Monte Carlo. To implement one of these algorithms from scratch, you would need to work directly with the expression above. This is a worthwhile approach if your model is too complicated for existing software or you need it to run extremely fast. However, the development and debugging process can take several weeks or months.
 
-However, there are already several existing software packages that can run MCMC on most Bayesian models. In these packages, you do not even have to derive the posterior distribution up to a proportionality constant. You merely need to identify the components of the likelihood and prior using the simple syntax supported by the tool. Examples of such tools are JAGS, `brms`, Stan, NIMBLE, `greta`, OpenBUGS, and WinBUGS. This tutorial will focus on JAGS, which uses Gibbs sampling, and `brms`, a convenient layer on top of Stan for Bayesian regression models. 
+There are already several existing software packages that can run MCMC much more easily. In these packages, you do not even have to derive the posterior distribution up to a proportionality constant. You merely need to identify the components of the likelihood and prior using the simple syntax supported by the tool. Examples of such tools are JAGS, `brms`, Stan, NIMBLE, `greta`, OpenBUGS, and WinBUGS. This tutorial will focus on JAGS, which uses Gibbs sampling, and `brms`, a convenient layer on top of Stan for Bayesian regression models. 
 
 ## JAGS
 
