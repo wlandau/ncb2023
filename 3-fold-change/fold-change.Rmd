@@ -64,7 +64,7 @@ $$
 The joint density of $y = (y_{11}, \ldots, y_{IJ})$ given the parameters can be written as
 
 $$
-p_{\mu_1, \mu_2, \sigma}(y) = \prod_{j = 1}^{J} \frac{1}{\sqrt{2 \pi \sigma}} e^{-\frac{1}{2} \left (\frac{y_{ij} - \mu_i}{\sigma} \right )^2}
+p_{\mu_1, \mu_2, \sigma}(y) = \prod_{j = 1}^{J} \frac{1}{\sqrt{2 \pi \sigma^2}} e^{-\frac{1}{2} \left (\frac{y_{ij} - \mu_i}{\sigma} \right )^2}
 $$
 
 with data model $p(y | \mu_1, \mu_2, \sigma) = p_{\mu_1, \mu_2, \sigma}(y)$. The fold change we want to estimate is the ratio of the treatment group mean to that of the placebo:
